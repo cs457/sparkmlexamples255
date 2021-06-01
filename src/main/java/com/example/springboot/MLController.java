@@ -13,7 +13,10 @@ import org.apache.spark.ml.regression.LinearRegressionModel;
 import org.apache.spark.ml.tuning.ParamGridBuilder;
 import org.apache.spark.ml.tuning.TrainValidationSplit;
 import org.apache.spark.ml.tuning.TrainValidationSplitModel;
-import org.apache.spark.sql.*;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructField;
@@ -31,20 +34,17 @@ import static org.apache.spark.sql.functions.col;
 public class MLController {
 
     public static String INPUT_FILE_PATH = "src/main/GymCompetition.csv";
-    private static List<String> nonNumericColumns = new ArrayList<>(Arrays.asList("Gender","Membership"));
+    private static List<String> nonNumericColumns = new ArrayList<>(Arrays.asList("Gender", "Membership"));
     private static List<String> numericColumns = new ArrayList<>(Arrays.asList("Age", "Height", "Weight"));
-    List<Row> genderColumnVal = new ArrayList<>();
     private static String INDEXER = "Indexer";
     private static String ENCODER = "Encoder";
     private static final String OUTPUT_LABEL_COLUMN = "NoOfReps";
-    Map<String, String> genderMapping = new HashMap<>();
     Dataset<Row> holdOutData;
     ResponseData responseDetails = new ResponseData();
-
     LinearRegressionModel lrModel;
     private List<Double> interceptCofficent = new ArrayList<>();
     private List<String> inputFeatures = new ArrayList<>();
-    private Dataset<Row> newDataFrame;
+    Map<String, List<String>> mapOfNonNumericAttr = new HashMap<>();
 
 
     public static SparkSession getSparkSession() {
@@ -75,14 +75,97 @@ public class MLController {
 
     }
 
-    public static Dataset<Row> generateRealTimeDataSet(RequestData requestData) {
-        List<Object> data = new ArrayList();
-        data.add("M");
-        data.add("Y");
-        data.add(21);
-        data.add(100);
-        data.add(180);
-        data.add(50.0);
+    public Dataset<Row> generateRealTimeDataSet(RequestData requestData) {
+
+
+        List<DataType> datatype = new ArrayList<DataType>();
+        datatype.add(DataTypes.StringType);
+        datatype.add(DataTypes.StringType);
+        datatype.add(DataTypes.IntegerType);
+
+        datatype.add(DataTypes.IntegerType);
+        datatype.add(DataTypes.IntegerType);
+        datatype.add(DataTypes.DoubleType);
+
+
+        List<String> header = new ArrayList<String>();
+        List<String> headerList = new ArrayList<>();
+        headerList.add("Gender");
+        headerList.add("Membership");
+        headerList.add("Age");
+        headerList.add("Height");
+        headerList.add("Weight");
+        headerList.add("NoOfReps");
+
+
+        StructField structField1 = new StructField(headerList.get(0), datatype.get(0), true, org.apache.spark.sql.types.Metadata.empty());
+        StructField structField2 = new StructField(headerList.get(1), datatype.get(1), true, org.apache.spark.sql.types.Metadata.empty());
+        StructField structField3 = new StructField(headerList.get(2), datatype.get(2), true, org.apache.spark.sql.types.Metadata.empty());
+        StructField structField4 = new StructField(headerList.get(3), datatype.get(3), true, org.apache.spark.sql.types.Metadata.empty());
+        StructField structField5 = new StructField(headerList.get(4), datatype.get(4), true, org.apache.spark.sql.types.Metadata.empty());
+        StructField structField6 = new StructField(headerList.get(5), datatype.get(5), true, org.apache.spark.sql.types.Metadata.empty());
+        List<StructField> structFieldsList = new ArrayList<>();
+        structFieldsList.add(structField1);
+        structFieldsList.add(structField2);
+        structFieldsList.add(structField3);
+        structFieldsList.add(structField4);
+        structFieldsList.add(structField5);
+        structFieldsList.add(structField6);
+
+        StructType schema = new StructType(structFieldsList.toArray(new StructField[0]));
+
+        List<Object> data = new ArrayList<>();
+
+
+        for(int z=0 ;z<(numericColumns.size() + nonNumericColumns.size());z++)
+        {
+            data.add(z,"dummy");
+        }
+
+
+        for (int p = 0; p < (numericColumns.size() + nonNumericColumns.size()); p++) {
+            int startOfNumericIndex = nonNumericColumns.size();
+            int endOfNumericIndex = numericColumns.size() + nonNumericColumns.size();
+
+            for (int k = startOfNumericIndex; k < endOfNumericIndex; k++) {
+                data.add(k,1000.0);
+            }
+
+           /* data.add("M");
+            data.add("Y");
+            data.add(21);
+            data.add(100);
+            data.add(180);
+            data.add(50.0);*/
+
+
+            Set<String> nonNumColumns = mapOfNonNumericAttr.keySet();
+
+            for (String eachCol : nonNumColumns) {
+                List<String> listOfVal = mapOfNonNumericAttr.get(eachCol);
+                int indexOfColumn = nonNumericColumns.indexOf(eachCol);
+                for (String nonNumericVal : listOfVal) {
+
+                    System.out.println("Index Of Column " + indexOfColumn + "Name Of Column" + eachCol);
+                    data.add(indexOfColumn, nonNumericVal);
+
+                }
+
+                for (int j = 0; j < startOfNumericIndex; j++) {
+                    if (j != indexOfColumn) {
+                        data.add(j, "D");
+                    }
+
+
+                }
+
+
+            }
+        }
+
+
+        //Add Rest Dummy Data
+
 
         List<Object> data1 = new ArrayList();
         data1.add("F");
@@ -113,42 +196,8 @@ public class MLController {
         Row row2 = RowFactory.create(data2.toArray());
         ls.add(row2);
 
-        List<DataType> datatype = new ArrayList<DataType>();
-        datatype.add(DataTypes.StringType);
-        datatype.add(DataTypes.StringType);
-        datatype.add(DataTypes.IntegerType);
-
-        datatype.add(DataTypes.IntegerType);
-        datatype.add(DataTypes.IntegerType);
-        datatype.add(DataTypes.DoubleType);
-
-        List<String> header = new ArrayList<String>();
-        List<String> headerList = new ArrayList<>();
-        headerList.add("Gender");
-        headerList.add("Membership");
-        headerList.add("Age");
-        headerList.add("Height");
-        headerList.add("Weight");
-        headerList.add("NoOfReps");
-
-        StructField structField1 = new StructField(headerList.get(0), datatype.get(0), true, org.apache.spark.sql.types.Metadata.empty());
-        StructField structField2 = new StructField(headerList.get(1), datatype.get(1), true, org.apache.spark.sql.types.Metadata.empty());
-        StructField structField3 = new StructField(headerList.get(2), datatype.get(2), true, org.apache.spark.sql.types.Metadata.empty());
-        StructField structField4 = new StructField(headerList.get(3), datatype.get(3), true, org.apache.spark.sql.types.Metadata.empty());
-        StructField structField5 = new StructField(headerList.get(4), datatype.get(4), true, org.apache.spark.sql.types.Metadata.empty());
-        StructField structField6 = new StructField(headerList.get(5), datatype.get(5), true, org.apache.spark.sql.types.Metadata.empty());
-        List<StructField> structFieldsList = new ArrayList<>();
-        structFieldsList.add(structField1);
-        structFieldsList.add(structField2);
-        structFieldsList.add(structField3);
-        structFieldsList.add(structField4);
-        structFieldsList.add(structField5);
-        structFieldsList.add(structField6);
-
-        StructType schema = new StructType(structFieldsList.toArray(new StructField[0]));
 
         Dataset<Row> dataset = getSparkSession().createDataFrame(ls, schema);
-
 
 
         return dataset;
@@ -179,38 +228,37 @@ public class MLController {
 
 
     @RequestMapping("/getActualTime")
-    public String getActualTime(@RequestBody RequestData requestData)
-    {
+    public String getActualTime(@RequestBody RequestData requestData) {
 
-        Dataset<Row> realTimeDataSet= generateRealTimeDataSet(requestData);
+        Dataset<Row> realTimeDataSet = generateRealTimeDataSet(requestData);
+
         realTimeDataSet = getNumericAndNonNumericDataSet(realTimeDataSet);
         inputFeatures = generateInputColumnsFormatting(nonNumericColumns);
         System.out.println("inputFeatures" + inputFeatures.toString());
         realTimeDataSet = getDataSetResults(realTimeDataSet, inputFeatures);
         realTimeDataSet = realTimeDataSet.select(OUTPUT_LABEL_COLUMN, "features").withColumnRenamed(OUTPUT_LABEL_COLUMN, "label");
 
-        Dataset<Row> realTimePredictionDataSet= this.lrModel.transform(realTimeDataSet);
+        Dataset<Row> realTimePredictionDataSet = this.lrModel.transform(realTimeDataSet);
 
-        realTimePredictionDataSet.show(10,true);
-        realTimePredictionDataSet= realTimePredictionDataSet .filter(col("label").equalTo(50.0));
+        realTimePredictionDataSet.show(10, true);
+        realTimePredictionDataSet = realTimePredictionDataSet.filter(col("label").equalTo(50.0));
 
-                //filter(col("label").equalTo(50.0)).show();
+        //filter(col("label").equalTo(50.0)).show();
 
-        realTimePredictionDataSet .show(10,false);
+        realTimePredictionDataSet.show(10, false);
 
-       List<Row> finalData= realTimePredictionDataSet.select(col("prediction")).collectAsList();
-       Double finalOutput=0.0;
+        List<Row> finalData = realTimePredictionDataSet.select(col("prediction")).collectAsList();
+        Double finalOutput = 0.0;
 
-       for(Row data1:finalData)
-       {
-           finalOutput= (Double) data1.get(0);
-       }
+        for (Row data1 : finalData) {
+            finalOutput = (Double) data1.get(0);
+        }
         return finalOutput.toString();
 
     }
 
 
-       /* @Scheduled(fixedRate = 100000)*/
+    /* @Scheduled(fixedRate = 100000)*/
     @RequestMapping("/getBestModel")
     public @ResponseBody
     ResponseData printDataSet() {
@@ -219,6 +267,8 @@ public class MLController {
         Dataset<Row> originalDataSet = null;
         originalDataSet = getDataSetFromInput(session, INPUT_FILE_PATH);
         originalDataSet.show();
+
+        generateDistinctNonNumericMap(originalDataSet);
         Dataset<Row> finalDataSet = getNumericAndNonNumericDataSet(originalDataSet);
         inputFeatures = generateInputColumnsFormatting(nonNumericColumns);
         System.out.println("inputFeatures" + inputFeatures.toString());
@@ -235,14 +285,33 @@ public class MLController {
         System.out.println("Accuracy R2: " + lrModel.summary().r2() + " RMSE " + lrModel.summary().rootMeanSquaredError());
 
 
-
         return responseDetails;
 
 
     }
 
+    private void generateDistinctNonNumericMap(Dataset<Row> originalDataSet) {
 
 
+        List<Row> eachNonNumericList = new ArrayList<>();
+        List<String> eachStringList;
+        for (String eachNonNumericCol : nonNumericColumns) {
+            eachStringList = new ArrayList<>();
+
+            eachNonNumericList = originalDataSet.select(originalDataSet.col(eachNonNumericCol)).distinct().collectAsList();
+            for (int k = 0; k < eachNonNumericList.size(); k++) {
+                System.out.println("list get()" + eachNonNumericList.get(k));
+                eachStringList.add(eachNonNumericList.get(k).get(0).toString());
+
+            }
+
+            mapOfNonNumericAttr.put(eachNonNumericCol, eachStringList);
+
+
+        }
+
+
+    }
 
 
     public Dataset<Row> generateBestModelDataSet(Dataset<Row> modelInputData) {
